@@ -1,0 +1,28 @@
+{
+  "project_name": "Sample Two-Subnet Router & Firewall",
+  "version": "1.0",
+  "devices": [
+    {
+      "name": "Host-Client",
+      "device_type": "HOST",
+      "interfaces": [
+        {"name": "eth0", "ip_address": "10.0.1.10", "subnet_mask": "255.255.255.0"}
+      ]
+    },
+    {
+      "name": "Edge-Router",
+      "device_type": "ROUTER",
+      "interfaces": [
+        {"name": "eth0", "ip_address": "10.0.1.1", "subnet_mask": "255.255.255.0"},
+        {"name": "eth1", "ip_address": "10.0.2.1", "subnet_mask": "255.255.255.0"}
+      ]
+    },
+    {
+      "name": "App-Server",
+      "device_type": "SERVER",
+      "interfaces": [
+        {"name": "eth0", "ip_address": "10.0.2.50", "subnet_mask": "255.255.255.0"}
+      ]
+    }
+  ]
+}
