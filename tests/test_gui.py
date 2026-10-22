@@ -28,6 +28,6 @@ def qapp():
 def test_main_window_init(qapp):
     win = MainWindow()
     assert win.windowTitle().startswith("Network Lab")
-    assert win.sidebar.count() == 4
-    assert win.pages.count() == 4
+    assert win.sidebar.count() == 7
+    assert win.pages.count() == 7
 

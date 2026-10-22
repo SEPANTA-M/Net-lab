@@ -1,63 +1,148 @@
-"""Overview Dashboard displaying system and simulation metrics."""
+"""Engineering Overview Workstation Page with Metrics, Topology Mini-map, and Activity Timeline."""
 
+from __future__ import annotations
+
+from typing import Optional
+from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import (
     QFrame,
     QGridLayout,
-    QGroupBox,
     QHBoxLayout,
+    QHeaderView,
     QLabel,
     QPushButton,
+    QSplitter,
+    QTableWidget,
+    QTableWidgetItem,
     QVBoxLayout,
     QWidget,
 )
 
+from app.theme import COLORS
+from core.network import VirtualNetwork
+from discovery.models import NetworkSnapshot
+from gui.components.widgets import MetricCard, SectionHeader, StatusBadge
+
 
 class OverviewPage(QWidget):
-    """High-level summary of network discovery and simulation stats."""
+    """Redesigned Overview Dashboard combining high-density metrics, topology overview, and timeline."""
 
-    def __init__(self, parent=None) -> None:
+    load_scenario_requested = Signal(str)
+    navigate_to_page = Signal(str)
+
+    def __init__(self, network: VirtualNetwork, parent: Optional[QWidget] = None) -> None:
         super().__init__(parent)
-        layout = QVBoxLayout(self)
+        self.network = network
 
-        title = QLabel("Operations Dashboard & Laboratory Overview")
-        title.setStyleSheet("font-size: 18px; font-weight: bold; color: #38bdf8;")
-        layout.addWidget(title)
+        main_layout = QVBoxLayout(self)
+        main_layout.setContentsMargins(16, 16, 16, 16)
+        main_layout.setSpacing(14)
 
-        grid = QGridLayout()
+        # 1. Top Section Header
+        header = SectionHeader(
+            "Engineering Operations & Laboratory Overview",
+            "Real system observation status and virtual network simulation metrics",
+        )
+        main_layout.addWidget(header)
 
-        # Real Observation Card
-        obs_box = QGroupBox("Real Network Observation (Read-Only)")
-        obs_layout = QVBoxLayout(obs_box)
-        self.lbl_hostname = QLabel("Host: Detecting...")
-        self.lbl_default_gw = QLabel("Default Gateway: None")
-        self.lbl_dns = QLabel("DNS Resolvers: None")
-        obs_layout.addWidget(self.lbl_hostname)
-        obs_layout.addWidget(self.lbl_default_gw)
-        obs_layout.addWidget(self.lbl_dns)
-        grid.addWidget(obs_box, 0, 0)
+        # 2. Key Metrics Strip (Real Data)
+        metrics_grid = QGridLayout()
+        metrics_grid.setSpacing(10)
 
-        # Virtual Simulation Card
-        sim_box = QGroupBox("Virtual Simulation Engine (Isolated)")
-        sim_layout = QVBoxLayout(sim_box)
-        self.lbl_vdevices = QLabel("Virtual Devices: 0")
-        self.lbl_vlinks = QLabel("Virtual Links: 0")
-        self.lbl_packets = QLabel("Packets Processed: 0")
-        sim_layout.addWidget(self.lbl_vdevices)
-        sim_layout.addWidget(self.lbl_vlinks)
-        sim_layout.addWidget(self.lbl_packets)
-        grid.addWidget(sim_box, 0, 1)
+        self.card_nodes = MetricCard("Simulated Devices", str(len(self.network.devices)), "Active in memory", "SIMULATED")
+        self.card_links = MetricCard("Virtual Links", str(len(self.network.links)), "Topology edges", "CONNECTED")
+        self.card_obs_ifaces = MetricCard("Discovered Interfaces", "0", "Local host adapters", "OBSERVED")
+        self.card_gateway = MetricCard("Default Gateway", "None", "Inferred routing hop", "GATEWAY")
 
-        layout.addLayout(grid)
+        metrics_grid.addWidget(self.card_nodes, 0, 0)
+        metrics_grid.addWidget(self.card_links, 0, 1)
+        metrics_grid.addWidget(self.card_obs_ifaces, 0, 2)
+        metrics_grid.addWidget(self.card_gateway, 0, 3)
+        main_layout.addLayout(metrics_grid)
 
-        # Quick Actions
-        actions_box = QGroupBox("Quick Scenario Presets")
-        act_layout = QHBoxLayout(actions_box)
-        self.btn_preset1 = QPushButton("Load Scenario: Router & 2 Subnets")
-        self.btn_preset2 = QPushButton("Load Scenario: Firewall & Web Service")
-        self.btn_preset3 = QPushButton("Load Scenario: DNS & HTTP Service")
-        act_layout.addWidget(self.btn_preset1)
-        act_layout.addWidget(self.btn_preset2)
-        act_layout.addWidget(self.btn_preset3)
-        layout.addWidget(actions_box)
+        # 3. Main Split View: Left Topology Summary & Quick Presets, Right Activity Timeline
+        splitter = QSplitter(Qt.Orientation.Horizontal)
 
-        layout.addStretch()
+        # Left Panel: Scenario Presets & Topology Summary
+        left_box = QFrame()
+        left_box.setStyleSheet(f"background-color: {COLORS['bg_panel']}; border: 1px solid {COLORS['border_subtle']}; border-radius: 4px; padding: 12px;")
+        left_layout = QVBoxLayout(left_box)
+
+        lbl_presets = QLabel("PRECONFIGURED ENGINEERING SCENARIOS")
+        lbl_presets.setStyleSheet(f"font-size: 11px; font-weight: 700; color: {COLORS['text_muted']}; letter-spacing: 0.6px;")
+        left_layout.addWidget(lbl_presets)
+
+        scenarios = [
+            ("scenario_1", "Two Subnets & Virtual Router", "Inter-VLAN style routing between 10.0.1.0/24 and 10.0.2.0/24"),
+            ("scenario_2", "Router & Firewall Filter", "Edge firewall blocking unauthorized ports, allowing HTTP"),
+            ("scenario_3", "DNS Resolver & HTTP Web Server", "Name resolution and virtual HTTP GET transaction"),
+        ]
+
+        for s_id, s_name, s_desc in scenarios:
+            card = QFrame()
+            card.setStyleSheet(f"background-color: {COLORS['bg_panel_alt']}; border: 1px solid {COLORS['border_subtle']}; border-radius: 4px; padding: 8px;")
+            c_layout = QVBoxLayout(card)
+            c_layout.setContentsMargins(6, 6, 6, 6)
+            c_layout.setSpacing(4)
+
+            row = QHBoxLayout()
+            row.addWidget(QLabel(s_name))
+            row.addStretch()
+            btn_load = QPushButton("Load Scenario")
+            btn_load.setObjectName("btnGhost")
+            btn_load.clicked.connect(lambda _, key=s_id: self.load_scenario_requested.emit(key))
+            row.addWidget(btn_load)
+            c_layout.addLayout(row)
+
+            desc_lbl = QLabel(s_desc)
+            desc_lbl.setStyleSheet(f"color: {COLORS['text_muted']}; font-size: 11px;")
+            c_layout.addWidget(desc_lbl)
+            left_layout.addWidget(card)
+
+        left_layout.addStretch()
+        splitter.addWidget(left_box)
+
+        # Right Panel: Activity & Diagnostics Log
+        right_box = QFrame()
+        right_box.setStyleSheet(f"background-color: {COLORS['bg_panel']}; border: 1px solid {COLORS['border_subtle']}; border-radius: 4px; padding: 12px;")
+        right_layout = QVBoxLayout(right_box)
+
+        lbl_activity = QLabel("SIMULATION & AUDIT TIMELINE")
+        lbl_activity.setStyleSheet(f"font-size: 11px; font-weight: 700; color: {COLORS['text_muted']}; letter-spacing: 0.6px;")
+        right_layout.addWidget(lbl_activity)
+
+        self.table_activity = QTableWidget(0, 3)
+        self.table_activity.setHorizontalHeaderLabels(["Timestamp", "Type", "Event Detail"])
+        self.table_activity.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.ResizeToContents)
+        self.table_activity.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeMode.ResizeToContents)
+        self.table_activity.horizontalHeader().setSectionResizeMode(2, QHeaderView.ResizeMode.Stretch)
+        right_layout.addWidget(self.table_activity)
+
+        splitter.addWidget(right_box)
+        splitter.setStretchFactor(0, 1)
+        splitter.setStretchFactor(1, 1)
+
+        main_layout.addWidget(splitter)
+
+    def update_snapshot(self, snapshot: NetworkSnapshot) -> None:
+        """Update metrics with fresh real-network observation data."""
+        self.card_obs_ifaces.set_value(str(len(snapshot.interfaces)))
+        self.card_gateway.set_value(snapshot.default_gateway or "None")
+
+    def update_simulation_stats(self, network: VirtualNetwork) -> None:
+        """Update simulation device counts."""
+        self.network = network
+        self.card_nodes.set_value(str(len(network.devices)))
+        self.card_links.set_value(str(len(network.links)))
+
+    def log_event(self, event_type: str, detail: str) -> None:
+        """Add entry to activity table."""
+        from datetime import datetime, timezone
+        row = self.table_activity.rowCount()
+        self.table_activity.insertRow(row)
+
+        ts = datetime.now(timezone.utc).strftime("%H:%M:%S")
+        self.table_activity.setItem(row, 0, QTableWidgetItem(ts))
+        self.table_activity.setItem(row, 1, QTableWidgetItem(event_type))
+        self.table_activity.setItem(row, 2, QTableWidgetItem(detail))
+        self.table_activity.scrollToBottom()
